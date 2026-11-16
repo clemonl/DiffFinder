@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "difffinder"
-version = "0.0.1"
+version = "0.1.0"
 description = "Check a Python function against a reference solution and see exactly how they differ."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,5 +12,11 @@ license = "MIT"
 authors = [{ name = "Clement Leung" }]
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/clemonl/DiffFinder"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/difffinder"]
