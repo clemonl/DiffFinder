@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest"]
+hermes = ["hermes-acp-sdk"]
 
 [project.urls]
 Homepage = "https://github.com/clemonl/DiffFinder"

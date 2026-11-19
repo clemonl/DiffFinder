@@ -131,12 +131,32 @@ Each function runs on its own deep copy of your arguments, so your data is never
   per function.
 - Parameters are matched by position, so the two functions may use different parameter names.
 
-## Roadmap
+## Trace a difference
 
-- 0.2: show the first step where two runs diverge
-- 0.3: try many inputs automatically and shrink a failing one to the smallest case
-- 0.4: plain-English hints for common mistakes
-- 0.5: a nicer display inside Jupyter notebooks
+`compare_traces()` records changes to local variables and shows where the two runs first
+diverge. The report displays as text in the terminal and as a table in Jupyter.
+
+```python
+from difffinder import compare_traces, find_difference
+
+report = compare_traces(count_to, count_to_ref, args=(4,), probe=False)
+print(report)
+
+first = find_difference(count_to, count_to_ref, [0, 1, 4])
+print(first.args)  # (1,)
+```
+
+By default, `compare_traces()` also runs the functions on variations of the positional inputs
+and tries to shrink a failing example. Use `probe=False` to run each function once.
+Pass `watch=["total"]` to compare a particular variable. Offline hints appear in the report.
+For an optional model-generated hint, pass `ai=your_callable`. The callable receives a prompt
+containing the functions' source, input, and comparison report.
+
+## Sorting visualizer
+
+With Tkinter installed, run `python -m difffinder.sorting_visualizer`. Choose two sorting
+functions, enter a list, and click **Compare & Record** to step through their changes side by side.
+For a terminal example, run `python -m difffinder.demo --console`.
 
 ## Development
 
