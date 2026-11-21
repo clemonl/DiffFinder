@@ -9,12 +9,19 @@ description = "Check a Python function against a reference solution and see exac
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
-authors = [{ name = "Clement Leung" }]
+authors = [
+    { name = "Clement Leung" },
+    {},
+    {}
+]
 dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest"]
-hermes = ["hermes-acp-sdk"]
+hermes = [
+    "hermes-acp-sdk",
+    "hermes-agent[acp]"
+]
 
 [project.urls]
 Homepage = "https://github.com/clemonl/DiffFinder"
