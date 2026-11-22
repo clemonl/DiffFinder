@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from .probe import outcome
 from .tracer import RAISE, Event, Trace, record
+from .values import same_repr, validate_tolerance
 
 
 def _special(name: str) -> bool:
@@ -75,6 +76,7 @@ def find_divergence(
     *,
     watch: Optional[Iterable[str]] = None,
     rename: Optional[Dict[str, str]] = None,
+    tolerance: Optional[float] = None,
 ):
     """Return ``(divergence_or_None, compared_names, skipped_names)`` for two traces.
 
@@ -102,7 +104,7 @@ def find_divergence(
         for i in range(max(len(a), len(b))):
             ea = a[i] if i < len(a) else None
             eb = b[i] if i < len(b) else None
-            if ea is None or eb is None or ea.value != eb.value:
+            if ea is None or eb is None or not same_repr(ea.value, eb.value, tolerance):
                 when = ea.step if ea is not None else candidate.steps
                 if _special(name):
                     rank = 1 if name == RAISE else 2
@@ -141,6 +143,7 @@ def compare_traces(
     max_steps: int = 100_000,
     probe: bool = True,
     ai: Any = None,
+    tolerance: Optional[float] = None,
 ) -> TraceComparison:
     """Run both functions on the same input and report how they differ.
 
@@ -156,17 +159,30 @@ def compare_traces(
     ``watch`` limits the step-by-step comparison to the named variables (``watch=[]`` compares only the
     outcome). ``rename`` maps variable names in ``candidate`` to the names in ``reference``. Giving either
     means you vouch that the names line up, and step-by-step differences then count as differences.
+    ``tolerance`` allows corresponding numerical values to differ by up to the given absolute amount.
 
     ``ai=True`` adds a short model-written hint (needs an API key, see :mod:`difffinder.ai`); ``ai`` may
     also be ``"hermes"``, ``"openai"`` or a function ``prompt -> str``. If the model cannot be reached the
     comparison still works and the reason is shown instead.
     """
+    validate_tolerance(tolerance)
     kwargs = kwargs or {}
     ta = record(candidate, copy.deepcopy(args), copy.deepcopy(kwargs), max_steps=max_steps)
     tb = record(reference, copy.deepcopy(args), copy.deepcopy(kwargs), max_steps=max_steps)
-    divergence, compared, skipped = find_divergence(ta, tb, watch=watch, rename=rename)
+    divergence, compared, skipped = find_divergence(
+        ta, tb, watch=watch, rename=rename, tolerance=tolerance
+    )
     strict = watch is not None or bool(rename)
-    differ = outcome(ta) != outcome(tb)
+    outcomes_a, outcomes_b = outcome(ta), outcome(tb)
+    differ = len(outcomes_a) != len(outcomes_b) or any(
+        name_a != name_b
+        or not (
+            value_a == value_b
+            if name_a == RAISE
+            else same_repr(value_a, value_b, tolerance)
+        )
+        for (name_a, value_a), (name_b, value_b) in zip(outcomes_a, outcomes_b)
+    )
     if not strict and not differ:
         divergence = None  # internal steps may differ between two correct solutions
     result = TraceComparison(
@@ -178,7 +194,9 @@ def compare_traces(
 
         names = [ta.arg_names.get("<arg%d>" % i, "arg%d" % i) for i in range(len(args))]
         try:
-            result.probe = run_probe(candidate, reference, tuple(args), kwargs, names, differ, ta, tb)
+            result.probe = run_probe(
+                candidate, reference, tuple(args), kwargs, names, differ, ta, tb, tolerance=tolerance
+            )
         except Exception:  # probing is a bonus; never let it break the comparison
             result.probe = None
     if not result.same:

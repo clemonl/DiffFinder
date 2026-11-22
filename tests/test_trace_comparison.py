@@ -1,5 +1,8 @@
 import json
 import os
+from decimal import Decimal
+
+import pytest
 
 from difffinder import RAISE, RETURN, compare_traces, find_difference, record
 
@@ -36,6 +39,73 @@ def test_identical_functions_are_the_same():
     cmp = compare_traces(sum_ok, sum_ok, args=(5,))
     assert cmp.same and cmp.divergence is None
     assert "SAME" in str(cmp)
+
+
+def test_tolerance_compares_trace_values_and_return_values():
+    def candidate():
+        value = 0.3000000001
+        return {"value": value}
+
+    def reference():
+        value = 0.3
+        return {"value": value}
+
+    cmp = compare_traces(candidate, reference, probe=False, watch=["value"], tolerance=1e-9)
+    assert cmp.same and cmp.divergence is None and not cmp.outcomes_differ
+    assert not compare_traces(candidate, reference, probe=False, watch=["value"]).same
+
+
+def test_trace_tolerance_respects_boundaries_and_non_numeric_values():
+    def left():
+        value = "same"
+        return 1.0
+
+    def same():
+        value = "same"
+        return 1.0
+
+    def different():
+        value = "other"
+        return 1.2
+
+    assert compare_traces(left, same, probe=False, watch=["value"], tolerance=0).same
+    assert compare_traces(left, different, probe=False, watch=["value"], tolerance=0.1).divergence.var == "value"
+    assert compare_traces(left, different, probe=False, tolerance=0.1).outcomes_differ
+
+
+def test_trace_probe_uses_the_configured_tolerance():
+    def candidate(value):
+        return value + 1e-10
+
+    def reference(value):
+        return value
+
+    cmp = compare_traces(candidate, reference, args=(1.0,), tolerance=1e-9)
+    assert cmp.same and cmp.probe is not None and cmp.probe.failing == 0
+
+
+def test_trace_tolerance_handles_decimal_values():
+    def candidate():
+        value = Decimal("0.3000000001")
+        return value
+
+    def reference():
+        value = Decimal("0.3")
+        return value
+
+    cmp = compare_traces(
+        candidate, reference, probe=False, watch=["value"], tolerance=Decimal("1e-9")
+    )
+    assert cmp.same and not cmp.outcomes_differ
+
+
+@pytest.mark.parametrize(
+    ("tolerance", "error"),
+    [(-1, ValueError), (float("inf"), ValueError), ("0.1", TypeError)],
+)
+def test_trace_comparison_rejects_invalid_tolerance(tolerance, error):
+    with pytest.raises(error):
+        compare_traces(sum_ok, sum_ok, args=(1,), probe=False, tolerance=tolerance)
 
 
 def test_off_by_one_loop_is_pinpointed_on_the_loop_variable():

@@ -15,6 +15,7 @@ from itertools import combinations, zip_longest
 from typing import Any, Dict, List, Optional
 
 from .tracer import RAISE, RETURN, Trace, record
+from .values import same_repr
 
 MAX_SINGLES = 55  # inputs made by changing one argument
 MAX_PAIRS = 25  # inputs made by changing two arguments at once
@@ -37,12 +38,22 @@ def outcome(trace: Trace) -> tuple:
     return tuple(items)
 
 
-def run_pair(candidate, reference, args, kwargs):
+def run_pair(candidate, reference, args, kwargs, tolerance=None):
     """Run both functions on copies of ``args``. Returns (candidate trace, reference trace, differ)."""
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         ta = record(candidate, copy.deepcopy(args), copy.deepcopy(kwargs), max_steps=STEP_LIMIT)
         tb = record(reference, copy.deepcopy(args), copy.deepcopy(kwargs), max_steps=STEP_LIMIT)
-    return ta, tb, outcome(ta) != outcome(tb)
+    outcomes_a, outcomes_b = outcome(ta), outcome(tb)
+    differ = len(outcomes_a) != len(outcomes_b) or any(
+        name_a != name_b
+        or not (
+            value_a == value_b
+            if name_a == RAISE
+            else same_repr(value_a, value_b, tolerance)
+        )
+        for (name_a, value_a), (name_b, value_b) in zip(outcomes_a, outcomes_b)
+    )
+    return ta, tb, differ
 
 
 def _unique(seq, original) -> list:
@@ -141,7 +152,7 @@ def _shrinks(value) -> list:
     return _unique(out, value)
 
 
-def _shrink(candidate, reference, args, kwargs, ta, tb):
+def _shrink(candidate, reference, args, kwargs, ta, tb, tolerance=None):
     """Greedily simplify a failing input while the two functions still disagree."""
     best, spent, improved = args, 0, True
     while improved and spent < SHRINK_BUDGET:
@@ -152,7 +163,7 @@ def _shrink(candidate, reference, args, kwargs, ta, tb):
                     break
                 trial = best[:i] + (s,) + best[i + 1 :]
                 spent += 1
-                t1, t2, bad = run_pair(candidate, reference, trial, kwargs)
+                t1, t2, bad = run_pair(candidate, reference, trial, kwargs, tolerance)
                 if bad:
                     best, ta, tb, improved = trial, t1, t2, True
                     break
@@ -278,13 +289,13 @@ class Probe:
     passing: List[tuple] = field(default_factory=list)
 
 
-def run_probe(candidate, reference, args, kwargs, names, first_failed, ta, tb) -> Probe:
+def run_probe(candidate, reference, args, kwargs, names, first_failed, ta, tb, tolerance=None) -> Probe:
     """Try variations of ``args``, shrink a failing one, and look for a pattern."""
     rows = [(args, first_failed)]
     pairs = [(ta, tb)]
     failing_runs: Dict[str, tuple] = {repr(args): (args, ta, tb)} if first_failed else {}
     for v in _variants(args):
-        t1, t2, bad = run_pair(candidate, reference, v, kwargs)
+        t1, t2, bad = run_pair(candidate, reference, v, kwargs, tolerance)
         rows.append((v, bad))
         pairs.append((t1, t2))
         if bad:
@@ -295,7 +306,9 @@ def run_probe(candidate, reference, args, kwargs, names, first_failed, ta, tb) -
     systematic = find_systematic(pairs, probe.failing)
     start = args if first_failed else min((r[0] for r in failing_runs.values()), key=lambda a: len(repr(a)))
     _, t1, t2 = failing_runs[repr(start)]
-    probe.minimal, probe.minimal_candidate, probe.minimal_reference = _shrink(candidate, reference, start, kwargs, t1, t2)
+    probe.minimal, probe.minimal_candidate, probe.minimal_reference = _shrink(
+        candidate, reference, start, kwargs, t1, t2, tolerance
+    )
     probe.patterns = systematic + find_patterns(rows, names)
     probe.passing = sorted((a for a, bad in rows if not bad), key=lambda a: len(repr(a)))[:2]
     return probe

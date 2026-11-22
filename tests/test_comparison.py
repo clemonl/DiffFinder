@@ -1,3 +1,5 @@
+import pytest
+
 from difffinder import compare
 
 
@@ -107,3 +109,30 @@ def test_the_text_names_the_functions_and_the_input():
     text = str(result)
     assert "off_by_one_sum and loop_sum" in text and "n=4" in text
     assert repr(result) == text
+
+
+def test_tolerance_compares_return_values_and_nested_numeric_values():
+    def candidate():
+        return {"values": [0.3000000001, 2]}
+
+    def reference():
+        return {"values": [0.3, 2.0]}
+
+    assert compare(candidate, reference, tolerance=1e-9).same
+    assert not compare(candidate, reference).same
+
+
+def test_tolerance_keeps_exact_and_non_numeric_comparison_behaviour():
+    assert compare(lambda: 0.3, lambda: 0.3, tolerance=0).same
+    assert compare(lambda: "value", lambda: "value", tolerance=1).same
+    assert not compare(lambda: "value", lambda: "other", tolerance=1).same
+    assert not compare(lambda: 1.0, lambda: 1.2, tolerance=0.1).same
+
+
+@pytest.mark.parametrize(
+    ("tolerance", "error"),
+    [(-1, ValueError), (float("nan"), ValueError), ("0.1", TypeError), (True, TypeError)],
+)
+def test_invalid_tolerance_is_rejected(tolerance, error):
+    with pytest.raises(error):
+        compare(lambda: 1, lambda: 1, tolerance=tolerance)

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional
 
 from .outcome import Outcome, run, short
+from .values import same_value, validate_tolerance
 
 
 @dataclass
@@ -45,23 +46,16 @@ class Comparison:
     __repr__ = __str__  # so a Comparison displays as text when it is the last line of a notebook cell
 
 
-def _same_value(a: Any, b: Any) -> bool:
-    try:
-        return bool(a == b)
-    except Exception:  # for example array-like objects whose == does not give a single True/False
-        return repr(a) == repr(b)
-
-
-def _differences(mine: Outcome, ref: Outcome) -> List[Difference]:
+def _differences(mine: Outcome, ref: Outcome, tolerance: Optional[float] = None) -> List[Difference]:
     found: List[Difference] = []
     if mine.raised or ref.raised:
         if mine.error_type != ref.error_type:  # same exception type counts as the same
             found.append(Difference("result", mine.describe(), ref.describe()))
-    elif not _same_value(mine.returned, ref.returned):
+    elif not same_value(mine.returned, ref.returned, tolerance):
         found.append(Difference("result", mine.describe(), ref.describe()))
     # Arguments are matched by position, so the two functions may name their parameters differently.
     for (name, a), (_, b) in zip(mine.arguments.items(), ref.arguments.items()):
-        if not _same_value(a, b):
+        if not same_value(a, b, tolerance):
             found.append(Difference("argument '%s' afterwards" % name, short(repr(a)), short(repr(b))))
     return found
 
@@ -75,13 +69,16 @@ def compare(
     reference: Callable[..., Any],
     args: tuple = (),
     kwargs: Optional[dict] = None,
+    tolerance: Optional[float] = None,
 ) -> Comparison:
     """Run both functions on the same input and report whether they behave the same.
 
     ``candidate`` is usually your own (possibly buggy) function and ``reference`` a known-good one.
     "Behave the same" means: the same return value, the same kind of exception, and the same changes
-    to the arguments. How the functions are written inside does not matter.
+    to the arguments. How the functions are written inside does not matter. If ``tolerance`` is given,
+    corresponding numerical values may differ by up to that absolute amount.
     """
+    validate_tolerance(tolerance)
     mine = run(candidate, args, kwargs)
     ref = run(reference, args, kwargs)
-    return Comparison(_name(candidate), _name(reference), mine, ref, _differences(mine, ref))
+    return Comparison(_name(candidate), _name(reference), mine, ref, _differences(mine, ref, tolerance))
