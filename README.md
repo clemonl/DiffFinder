@@ -167,5 +167,4 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Requirements are listed in [SPEC.md](SPEC.md) and the division of work in [TEAM.md](TEAM.md).
 Released under the MIT license.
