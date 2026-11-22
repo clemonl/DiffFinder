@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tracecomparekit"
-version = "0.1.0"
+version = "0.1.1"
 description = "Check a Python function against a reference solution and see exactly how they differ."
 readme = "README.md"
 requires-python = ">=3.9"
