@@ -6,7 +6,7 @@ Give DiffFinder your function and a known-good one. It runs both on the same inp
 behave the same, and if not, what is different: the result, an exception, or a change to the input.
 
 ```text
-pip install difffinder
+pip install tracecomparekit
 ```
 
 ## Motivation
