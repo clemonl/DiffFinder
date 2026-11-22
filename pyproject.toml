@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 authors = [
-    { name = "Clement Leung, Iko Yeung" },
-    {},
-    {}
+    { name = "Clement Leung" },
+    { name = "Iko Yeung" },
+    { name = "James" }
 ]
 dependencies = []
 
@@ -25,6 +25,8 @@ hermes = [
 
 [project.urls]
 Homepage = "https://github.com/clemonl/DiffFinder"
+Repository = "https://github.com/clemonl/DiffFinder"
+Documentation = "https://github.com/clemonl/DiffFinder#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/difffinder"]
