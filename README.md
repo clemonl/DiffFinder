@@ -99,7 +99,7 @@ DIFFERENT: first_item and first_or_none behave differently on (items=[]).
 ## Usage
 
 ```python
-compare(candidate, reference, args=(), kwargs=None)
+compare(candidate, reference, args=(), kwargs=None, tolerance=None)
 ```
 
 | Part | Meaning |
@@ -108,6 +108,7 @@ compare(candidate, reference, args=(), kwargs=None)
 | `reference` | the known-good function |
 | `args` | a tuple of positional arguments, for example `(4,)` or `([3, 1, 2], 5)` (note the comma in a one-item tuple) |
 | `kwargs` | a dict of keyword arguments, for example `{"reverse": True}` |
+| `tolerance` | optional non-negative absolute tolerance for corresponding numerical values |
 
 It returns a `Comparison` with `.same` (`True` or `False`), `.differences` (a list), and `.candidate` /
 `.reference`, which hold what each function did. `run(func, args)` runs a single function and records the same
@@ -121,6 +122,15 @@ On the input you give, they must have:
 2. the same final state of every argument they received.
 
 Each function runs on its own deep copy of your arguments, so your data is never changed.
+
+Use `tolerance` when small floating-point differences should count as equal. It also applies to
+corresponding numerical values in nested return values and final argument states:
+
+```python
+compare(lambda: 0.3000000001, lambda: 0.3, tolerance=1e-9)
+```
+
+Without `tolerance`, values are compared exactly as before.
 
 ## Limitations
 
@@ -142,9 +152,19 @@ from difffinder import compare_traces, find_difference
 report = compare_traces(count_to, count_to_ref, args=(4,), probe=False)
 print(report)
 
+close = compare_traces(
+    lambda: 0.3000000001,
+    lambda: 0.3,
+    tolerance=1e-9,
+    probe=False,
+)
+
 first = find_difference(count_to, count_to_ref, [0, 1, 4])
 print(first.args)  # (1,)
 ```
+
+`compare_traces()` applies the same absolute tolerance to numerical values recorded in variable histories,
+return values, and final argument states. Tolerance must be a non-negative finite number.
 
 By default, `compare_traces()` also runs the functions on variations of the positional inputs
 and tries to shrink a failing example. Use `probe=False` to run each function once.
